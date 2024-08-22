@@ -1,0 +1,37 @@
+<script type="module">
+	import * as coap from "./libcoap.js";
+	
+	console.log(coap.coapGetLibCoapVersion())
+	
+	var ctx = new coap.CoapContext()
+	
+	ctx.event_callback = function (ctx, session, event_type) {
+		// TODO embind does not convert this enum
+		if (event_type == coap.libcoapWasm.coap_event_t.COAP_EVENT_SESSION_CONNECTED.value)
+			console.log("connected")
+		else
+			console.log("received event", event_type)
+	}
+	
+	ctx.response_callback = function (ctx, session, sentPdu, receivedPdu, mid) {
+		console.log("received response code", receivedPdu.getCode())
+		
+		console.log(receivedPdu.getPayload())
+		document.write("<p>"+receivedPdu.getPayload()+"</p>")
+	}
+	
+	// you can start a CoAP server that answers the requests below with the
+	// following command when libcoap is installed:
+	//
+	//    coap-server -w 8080
+	
+	var session = ctx.newClientSession("ws://localhost:8080")
+	
+	await session.waitConnected()
+	
+	session.get(".well-known/core")
+	session.get("time")
+	
+	session.put("example_data", "example payload set from JS")
+	session.get("example_data")
+</script>
