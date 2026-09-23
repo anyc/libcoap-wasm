@@ -1,0 +1,317 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>libcoap browser</title>
+  <style>
+    body { max-width: 60rem; margin: 2rem auto; padding: 0 1rem; font-family: sans-serif; }
+    #connection-form { display: flex; flex-wrap: wrap; align-items: center; gap: .5rem; }
+    #server-url { flex: 1; min-width: 16rem; padding: .4rem; }
+    .resource { margin: .5rem 0 1rem 1rem; }
+    .resource form { display: flex; flex-wrap: wrap; gap: .5rem; align-items: center; }
+    .resource label { display: flex; flex: 1; min-width: 12rem; align-items: center; gap: .4rem; }
+    .resource input { min-width: 0; flex: 1; padding: .4rem; }
+    .resource-status { margin: .3rem 0; overflow-wrap: anywhere; }
+    .tree, .tree ul { list-style: none; padding-left: 1.2rem; }
+    .tree ul { margin: .25rem 0 .5rem; border-left: 1px solid #bbb; }
+    .tree li { margin: .35rem 0; }
+    .tree summary { cursor: pointer; font-weight: bold; }
+    .resource-attributes { margin-top: .5rem; }
+    .attributes { font-size: .9rem; }
+    .attribute { display: grid; grid-template-columns: 4rem minmax(0, 1fr); gap: .15rem .5rem; }
+    .attribute-name { font-weight: bold; }
+    .attribute-value { justify-self: start; max-width: 100%; box-sizing: border-box;
+      padding: .1rem .35rem; background: #e8f0fa; color: #163a63;
+      border-radius: .2rem; overflow-wrap: anywhere; }
+    .attribute-description { grid-column: 2; color: #555; }
+  </style>
+</head>
+<body>
+  <h1>libcoap browser</h1>
+  <form id="connection-form">
+    <label for="server-url">CoAP WebSocket URL</label>
+    <input id="server-url" type="url" required>
+    <button type="submit">Connect</button>
+  </form>
+  <p id="status">Connecting to the CoAP server…</p>
+  <p>Browser libcoap version: <span id="version"></span></p>
+  <h2>Resources</h2>
+  <ul id="resource-tree" class="tree" aria-live="polite"></ul>
+
+  <script type="module">
+    import {parseLinkFormat} from './coap-link-format.js';
+
+    const status = document.querySelector('#status');
+    const serverInput = document.querySelector('#server-url');
+    const resourceTree = document.querySelector('#resource-tree');
+    const pending = new Map();
+    const controls = new Map();
+    let session;
+    const defaultServerUrl = new URL('/.well-known/coap', location.href);
+    defaultServerUrl.protocol = location.protocol === 'https:' ? 'wss:' : 'ws:';
+    serverInput.value = new URLSearchParams(location.search).get('server') ||
+      defaultServerUrl.href;
+    document.querySelector('#connection-form').addEventListener('submit', event => {
+      event.preventDefault();
+      try {
+        const endpoint = new URL(serverInput.value.trim());
+        if (endpoint.protocol !== 'ws:' && endpoint.protocol !== 'wss:') {
+          throw new Error('Use a ws:// or wss:// URL.');
+        }
+        const pageUrl = new URL(location.href);
+        pageUrl.searchParams.set('server', endpoint.href);
+        location.assign(pageUrl.href);
+      } catch (error) {
+        status.textContent = `Invalid server URL: ${error.message}`;
+      }
+    });
+    const attributeDescriptions = {
+      rt: 'Resource type: what kind of resource this is.',
+      if: 'Interface description: how to interact with this resource.',
+      ct: 'CoAP Content-Format ID(s); 0 means UTF-8 plain text.',
+      title: 'Human-readable name for this resource.',
+      obs: 'Hint that this resource is useful to observe for updates.',
+      sz: 'Estimated maximum response size, in bytes.',
+      anchor: 'URI that provides the context for this link.',
+      rel: 'Relationship between this link and its context.',
+      hreflang: 'Language of the linked resource.',
+      type: 'Media type hint for the linked resource.'
+    };
+
+    function coapCode(code) {
+      return `${Math.floor(code / 32)}.${String(code % 32).padStart(2, '0')}`;
+    }
+
+    function localPath(href) {
+      const uri = new URL(href, 'coap://browser.invalid/.well-known/core');
+      return uri.protocol === 'coap:' && uri.host === 'browser.invalid' &&
+        !uri.search && !uri.hash ? uri.pathname.slice(1) : null;
+    }
+
+    function request(path, action, value, row, revision = row?.revision) {
+      const pdu = action === 'put' ? session.put(path, value)
+        : action === 'observe' ? session.observe(path)
+          : session.get(path);
+      pending.set(pdu.token, {path, action, row, revision, token: pdu.token});
+      return pdu.token;
+    }
+
+    function renderAttributes(resource) {
+      const details = document.createElement('details');
+      details.className = 'resource-attributes';
+      const summary = document.createElement('summary');
+      summary.textContent = `Attributes (${resource.attributes.length})`;
+      details.append(summary);
+
+      const attributes = document.createElement('ul');
+      attributes.className = 'attributes';
+      for (const attribute of [{name: 'URI', value: resource.href},
+        ...resource.attributes]) {
+        const item = document.createElement('li');
+        item.className = 'attribute';
+        const name = document.createElement('span');
+        name.className = 'attribute-name';
+        name.textContent = attribute.name;
+        const value = document.createElement('code');
+        value.className = 'attribute-value';
+        value.textContent = attribute.value === true ? 'present' : attribute.value;
+        item.append(name, value);
+        if (attribute.name !== 'URI') {
+          const description = document.createElement('small');
+          description.className = 'attribute-description';
+          description.textContent = attributeDescriptions[attribute.name] ||
+            'No built-in description for this attribute.';
+          item.append(description);
+        }
+        attributes.append(item);
+      }
+      details.append(attributes);
+      return details;
+    }
+
+    function renderResource(resource) {
+      const container = document.createElement('div');
+      container.className = 'resource';
+      const path = localPath(resource.href);
+      const row = {locked: false, revision: 0};
+      const form = document.createElement('form');
+      const label = document.createElement('label');
+      label.textContent = 'Value ';
+      row.input = document.createElement('input');
+      row.input.type = 'text';
+      row.input.autocomplete = 'off';
+      row.input.addEventListener('input', () => {
+        row.locked = true;
+        row.revision++;
+      });
+      label.append(row.input);
+      const send = document.createElement('button');
+      send.type = 'submit';
+      send.textContent = 'Send (PUT)';
+      const get = document.createElement('button');
+      get.type = 'button';
+      get.textContent = 'Get';
+      form.append(label, send, get);
+      row.status = document.createElement('p');
+      row.status.className = 'resource-status';
+      if (path === null) {
+        send.disabled = true;
+        get.disabled = true;
+        row.status.textContent = 'This URI cannot be requested through the current session.';
+      } else {
+        if (!controls.has(path)) controls.set(path, []);
+        controls.get(path).push(row);
+        form.addEventListener('submit', event => {
+          event.preventDefault();
+          row.locked = true;
+          row.pendingToken = request(path, 'put', row.input.value, row);
+          row.status.textContent = 'Sending…';
+        });
+        get.addEventListener('click', () => {
+          row.locked = true;
+          row.pendingToken = request(path, 'get', undefined, row);
+          row.status.textContent = 'Getting…';
+        });
+      }
+      container.append(form, row.status, renderAttributes(resource));
+      return container;
+    }
+
+    function renderResourceTree(resources) {
+      controls.clear();
+      const root = {children: new Map(), resources: []};
+      for (const resource of resources) {
+        const path = new URL(resource.href,
+          'coap://browser.invalid/.well-known/core').pathname;
+        const segments = path.split('/').filter(Boolean);
+        let node = root;
+        for (const segment of segments) {
+          if (!node.children.has(segment)) {
+            node.children.set(segment, {children: new Map(), resources: []});
+          }
+          node = node.children.get(segment);
+        }
+        node.resources.push(resource);
+      }
+
+      function renderNode(name, node) {
+        const item = document.createElement('li');
+        let content = item;
+        if (node.children.size) {
+          const details = document.createElement('details');
+          details.open = true;
+          const summary = document.createElement('summary');
+          summary.textContent = name;
+          details.append(summary);
+          item.append(details);
+          content = details;
+        } else {
+          const label = document.createElement('strong');
+          label.textContent = name;
+          item.append(label);
+        }
+
+        for (const resource of node.resources) {
+          content.append(renderResource(resource));
+        }
+        if (node.children.size) {
+          const children = document.createElement('ul');
+          for (const [segment, child] of node.children) {
+            children.append(renderNode(segment, child));
+          }
+          content.append(children);
+        }
+        return item;
+      }
+
+      const tree = document.createDocumentFragment();
+      if (root.resources.length) {
+        tree.append(renderNode('/', root));
+      } else {
+        for (const [segment, node] of root.children) {
+          tree.append(renderNode(segment, node));
+        }
+      }
+      resourceTree.replaceChildren(tree);
+    }
+
+    function updateResource(response, code, payload) {
+      const {path, action, row: sender, revision, token} = response;
+      const success = code >= 64 && code < 96;
+      for (const row of controls.get(path) || []) {
+        if (success && action !== 'put') {
+          if (action === 'get' && row === sender &&
+              row.pendingToken === token && row.revision === revision) {
+            row.locked = false;
+            row.pendingToken = null;
+          }
+          if (!row.locked) row.input.value = payload;
+        }
+        row.status.textContent = `${action.toUpperCase()}: ${coapCode(code)}`;
+      }
+      if (success && action === 'put' && sender?.pendingToken === token) {
+        sender.pendingToken = request(path, 'get', undefined, sender, revision);
+      }
+    }
+
+    try {
+      status.textContent = 'Loading libcoap…';
+      const coap = await import('./libcoap.js');
+      document.querySelector('#version').textContent = coap.coapGetLibCoapVersion();
+      status.textContent = 'Creating CoAP context…';
+      const ctx = new coap.CoapContext();
+      const socketUrl = new URL(serverInput.value);
+      if (socketUrl.protocol !== 'ws:' && socketUrl.protocol !== 'wss:') {
+        throw new Error('CoAP WebSocket URL must use ws:// or wss://');
+      }
+      status.textContent = 'Opening WebSocket…';
+      session = ctx.newClientSession(socketUrl.href);
+
+      ctx.response_callback = (_ctx, _session, _sent, received) => {
+        const token = received.getToken();
+        const response = pending.get(token);
+        if (!response) return 1;
+        const {path, action} = response;
+        const code = received.getCode();
+        const payload = received.getPayload();
+        if (action !== 'observe' || code < 64 || code >= 96) {
+          pending.delete(token);
+        }
+        if (action === 'discover' && code >= 64 && code < 96) {
+          try {
+            const resources = parseLinkFormat(payload);
+            renderResourceTree(resources);
+            const paths = new Map();
+            for (const resource of resources) {
+              const resourcePath = localPath(resource.href);
+              if (resourcePath === null) continue;
+              const observable = resource.attributes.some(attr => attr.name === 'obs');
+              paths.set(resourcePath, observable || paths.get(resourcePath) || false);
+            }
+            for (const [resourcePath, observable] of paths) {
+              request(resourcePath, observable ? 'observe' : 'get');
+            }
+            status.textContent = `${resources.length} resource(s) found; ` +
+              `observing ${[...paths.values()].filter(Boolean).length}.`;
+          } catch (error) {
+            status.textContent = `Could not parse resource discovery: ${error.message}`;
+          }
+        } else if (action === 'discover') {
+          status.textContent = `Resource discovery failed: ${coapCode(code)}`;
+        } else {
+          updateResource(response, code, payload);
+        }
+        return 1;
+      };
+
+      status.textContent = 'Waiting for CoAP handshake…';
+      await session.waitConnected();
+      status.textContent = 'Connected to the CoAP server.';
+      request('.well-known/core', 'discover');
+    } catch (error) {
+      status.textContent = `Connection failed: ${error.message}`;
+    }
+  </script>
+</body>
+</html>
