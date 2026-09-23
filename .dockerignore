@@ -1,7 +1,7 @@
 *
 !Dockerfile
-!Dockerfile.browser-server
+!Dockerfile.coap-explorer
 !docker/
 !docker/build.sh
-!docker/browser-server/
-!docker/browser-server/*
+!docker/coap-explorer/
+!docker/coap-explorer/*

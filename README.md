@@ -38,17 +38,17 @@ License
 libcoap-wasm is provided under the MIT license. For libcoap, please see the
 [libcoap license](https://github.com/obgm/libcoap/blob/develop/LICENSE).
 
-Browser example
----------------
+CoAP Explorer
+-------------
 
-Run `./run-browser-server.sh`, then open `http://localhost:8080/`. The script
+Run `./run-coap-explorer.sh`, then open `http://localhost:8080/`. The script
 creates a container that sets up libcoap-wasm with nginx and starts the example
 CoAP server from libcoap.
 
-The browser connects to the page's host at `/.well-known/coap` by default.
+CoAP Explorer connects to the page's host at `/.well-known/coap` by default.
 Enter another `ws://` or `wss://` endpoint and press Connect to reload with a
-fresh session. The browser contacts that endpoint directly, so it must be
-reachable from the browser and accept the `coap` WebSocket subprotocol.
+fresh session. The web browser contacts that endpoint directly, so it must be
+reachable from the web browser and accept the `coap` WebSocket subprotocol.
 
 Set `PORT=18080` to publish another host port. The script uses Podman when
 available, or Docker; set `CONTAINER_RUNTIME=docker` to choose Docker
@@ -58,12 +58,12 @@ On Linux, `--host-network` shares the host network; `--no-coap-server` skips
 the bundled `coap-server`. Use both options to proxy through nginx to a CoAP
 WebSocket server already running on the host at `127.0.0.1:5684`. Without
 `--host-network`, using `--no-coap-server` leaves the default same-host proxy
-without an upstream; enter a directly reachable WebSocket URL in the browser.
+without an upstream; enter a directly reachable WebSocket URL in CoAP Explorer.
 With host networking, nginx listens on port 8080.
 
-The browser image builds a native libcoap `coap-server` from the `develop`
+The explorer image builds a native libcoap `coap-server` from the `develop`
 branch and installs nginx during the image build. Nginx serves the current
-`browser.html`, JavaScript, and WebAssembly files, and proxies
+`coap-explorer.html`, JavaScript, and WebAssembly files, and proxies
 `/.well-known/coap` to the server's loopback-only WebSocket listener. The page
 shows discovered resources as a tree, observes observable resources, gets
 values for the others, and provides Get and Send (PUT) controls for each local

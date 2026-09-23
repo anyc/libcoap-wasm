@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>libcoap browser</title>
+  <title>CoAP Explorer</title>
   <style>
     body { max-width: 60rem; margin: 2rem auto; padding: 0 1rem; font-family: sans-serif; }
     #connection-form { display: flex; flex-wrap: wrap; align-items: center; gap: .5rem; }
@@ -28,14 +28,14 @@
   </style>
 </head>
 <body>
-  <h1>libcoap browser</h1>
+  <h1>CoAP Explorer</h1>
   <form id="connection-form">
     <label for="server-url">CoAP WebSocket URL</label>
     <input id="server-url" type="url" required>
     <button type="submit">Connect</button>
   </form>
   <p id="status">Connecting to the CoAP server…</p>
-  <p>Browser libcoap version: <span id="version"></span></p>
+  <p>Client libcoap version: <span id="version"></span></p>
   <h2>Resources</h2>
   <ul id="resource-tree" class="tree" aria-live="polite"></ul>
 
@@ -84,8 +84,8 @@
     }
 
     function localPath(href) {
-      const uri = new URL(href, 'coap://browser.invalid/.well-known/core');
-      return uri.protocol === 'coap:' && uri.host === 'browser.invalid' &&
+      const uri = new URL(href, 'coap://explorer.invalid/.well-known/core');
+      return uri.protocol === 'coap:' && uri.host === 'explorer.invalid' &&
         !uri.search && !uri.hash ? uri.pathname.slice(1) : null;
     }
 
@@ -183,7 +183,7 @@
       const root = {children: new Map(), resources: []};
       for (const resource of resources) {
         const path = new URL(resource.href,
-          'coap://browser.invalid/.well-known/core').pathname;
+          'coap://explorer.invalid/.well-known/core').pathname;
         const segments = path.split('/').filter(Boolean);
         let node = root;
         for (const segment of segments) {
