@@ -27,6 +27,10 @@ JavaScript and WebAssembly files are written under `dist/` on the host. Set
 `CONTAINER_RUNTIME=docker` to choose Docker explicitly, or `LIBCOAP_REF` to
 fetch a different branch or tag.
 
+Normal builds include libcoap logging through NOTICE (level 5). Run
+`./build-container.sh DEBUG=1` to include all logging levels and enable
+socket diagnostics.
+
 Layout
 ------
 
