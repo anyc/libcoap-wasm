@@ -68,3 +68,25 @@ branch and installs nginx during the image build. Nginx serves the current
 shows discovered resources as a tree, observes observable resources, gets
 values for the others, and provides Get and Send (PUT) controls for each local
 resource. Resource attributes can be expanded beneath each resource.
+
+Tests
+-----
+
+Run `./run-tests.sh` to build the current Wasm client and run the JavaScript
+unit tests plus a Node.js integration test in a container. The integration
+test starts libcoap's WebSocket server, discovers resources, and checks GET,
+PUT, and several concurrent GET requests through the Wasm client. The build
+updates `libcoap-wasm.js` and `libcoap-wasm.wasm` in this directory. Set
+`SKIP_WASM_BUILD=1` to test the existing generated files without rebuilding.
+As with the other scripts, set `CONTAINER_RUNTIME=docker` to use Docker or
+`LIBCOAP_REF` to choose a libcoap branch or tag; `develop` is the default.
+
+Run `./run-tests.sh --browser` to add a headless Chromium test of the CoAP
+Explorer page. This option installs Playwright, Chromium, and nginx in a
+separate test image; the default test image does not include them. The browser
+test checks resource discovery and a PUT followed by a GET through the page.
+
+GitHub Actions runs the container tests on every push and pull request. To run
+the optional browser test in CI, open the **Tests** workflow in GitHub Actions,
+choose **Run workflow**, and enable **Run the headless browser test**. That
+run reuses the Wasm files built by the first step.

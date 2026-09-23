@@ -1,0 +1,30 @@
+name: Tests
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+    inputs:
+      browser:
+        description: Run the headless browser test
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    env:
+      CONTAINER_RUNTIME: docker
+    steps:
+      - uses: actions/checkout@v7
+      - name: Build Wasm and run Node tests
+        run: ./run-tests.sh
+      - name: Run browser test
+        if: ${{ github.event_name == 'workflow_dispatch' && inputs.browser }}
+        env:
+          SKIP_WASM_BUILD: '1'
+        run: ./run-tests.sh --browser
