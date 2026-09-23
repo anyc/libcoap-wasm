@@ -1,9 +1,18 @@
-import {libcoapWasmFactory} from '../dist/libcoap-wasm.js';
 import {installCoapWebSocketAdapter} from './coap-websocket-adapter.js';
+
+let wasmDirectory = new URL('./', import.meta.url);
+let wasmModule;
+try {
+	wasmModule = await import(new URL('libcoap-wasm.js', wasmDirectory));
+} catch {
+	wasmDirectory = new URL('../dist/', import.meta.url);
+	wasmModule = await import(new URL('libcoap-wasm.js', wasmDirectory));
+}
+const {libcoapWasmFactory} = wasmModule;
 
 export var libcoapWasm = await libcoapWasmFactory({
 	websocket: {},
-	locateFile: path => new URL(`../dist/${path}`, import.meta.url).href,
+	locateFile: path => new URL(path, wasmDirectory).href,
 });
 installCoapWebSocketAdapter(libcoapWasm);
 let nextToken = 1;

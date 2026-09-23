@@ -100,3 +100,14 @@ GitHub Actions runs the container tests on every push and pull request. To run
 the optional browser test in CI, open the **Tests** workflow in GitHub Actions,
 choose **Run workflow**, and enable **Run the headless browser test**. That
 run reuses the Wasm files built by the first step.
+
+Releases
+--------
+
+Push a Git tag to run the release workflow. It builds and tests the tagged
+sources, then attaches `libcoap-wasm-<version>.tgz` to the GitHub
+Release. The archive contains a portable `libcoap-wasm/` runtime directory,
+deployment instructions, and CoAP Explorer with an nginx sample under
+`examples/`. For a `v1.0.0` tag, run
+`./scripts/package-release.sh v1.0.0` to build
+`artifacts/libcoap-wasm-1.0.0.tgz` locally.
