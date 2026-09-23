@@ -38,6 +38,27 @@ int setPduPath(ptrdiff_t mpdu, std::string path) {
 	return 0;
 }
 
+int setRequestToken(ptrdiff_t mpdu, uint32_t token, bool observe) {
+	coap_pdu_t *pdu = (coap_pdu_t*) mpdu;
+	uint8_t bytes[4] = {
+		(uint8_t)(token >> 24), (uint8_t)(token >> 16),
+		(uint8_t)(token >> 8), (uint8_t)token
+	};
+	if (!coap_add_token(pdu, sizeof(bytes), bytes))
+		return 0;
+	if (observe && !coap_add_option(pdu, COAP_OPTION_OBSERVE, 0, NULL))
+		return 0;
+	return 1;
+}
+
+uint32_t getPduToken(ptrdiff_t mpdu) {
+	coap_bin_const_t token = coap_pdu_get_token((coap_pdu_t*) mpdu);
+	if (token.length != 4)
+		return 0;
+	return ((uint32_t)token.s[0] << 24) | ((uint32_t)token.s[1] << 16) |
+		((uint32_t)token.s[2] << 8) | token.s[3];
+}
+
 int addPayload(ptrdiff_t coap_session, ptrdiff_t coap_pdu, std::string payload) {
 	return coap_add_data_large_request(
 		(coap_session_t*) coap_session,
@@ -110,14 +131,18 @@ EMSCRIPTEN_BINDINGS(libcoap) {
 	function(
 		"get_payload",
 		(emscripten::val (*)(emscripten::val)) []( emscripten::val mpdu) {
-			size_t size;
-			ptrdiff_t data;
-			size_t offset;
-			size_t total;
+			size_t size = 0;
+			ptrdiff_t data = 0;
+			size_t offset = 0;
+			size_t total = 0;
 			int r;
 			
 			coap_pdu_t *pdu = (coap_pdu_t*) mpdu.as<ptrdiff_t>();
 			r = coap_get_data_large(pdu, &size, (const uint8_t**) &data, &offset, &total);
+			if (!r) {
+				size = 0;
+				data = 0;
+			}
 			
 			emscripten::val jpayload = emscripten::val::object();
 			
@@ -179,6 +204,8 @@ EMSCRIPTEN_BINDINGS(libcoap) {
 	function("allocUri", &allocUri, allow_raw_pointers());
 	function("resolveUri", &resolveUri, allow_raw_pointers());
 	function("setPduPath", &setPduPath, allow_raw_pointers());
+	function("setRequestToken", &setRequestToken);
+	function("getPduToken", &getPduToken);
 	function("newContext", &newContext);
 	function("addPayload", &addPayload);
 }
