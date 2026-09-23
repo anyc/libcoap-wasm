@@ -14,8 +14,8 @@ stop() {
 }
 trap stop EXIT INT TERM
 
-tests=(coap-link-format.test.mjs coap-websocket-adapter.test.mjs coap-integration.test.mjs)
+tests=(tests/coap-link-format.test.mjs tests/coap-websocket-adapter.test.mjs tests/coap-integration.test.mjs)
 if [[ ${RUN_BROWSER_TESTS:-0} == 1 ]]; then
-    tests+=(coap-browser.test.mjs)
+    tests+=(tests/coap-browser.test.mjs)
 fi
 node --test --test-force-exit "${tests[@]}"

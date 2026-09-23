@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import {parseLinkFormat} from './coap-link-format.js';
+import {parseLinkFormat} from '../src/coap-link-format.js';
 
 test('parses resource links and keeps all attributes', () => {
   assert.deepEqual(parseLinkFormat(

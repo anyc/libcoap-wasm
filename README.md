@@ -23,9 +23,18 @@ To build with Podman or Docker, run `./build-container.sh`. The script builds
 an image with Emscripten, then starts a container that fetches libcoap's
 `develop` branch and builds the wrapper. If there is a `libcoap/` directory
 in this directory, it uses that copy instead of fetching one. The generated
-JavaScript and WebAssembly files are written into this project directory on the
-host. Set `CONTAINER_RUNTIME=docker` to choose Docker explicitly, or
-`LIBCOAP_REF` to fetch a different branch or tag.
+JavaScript and WebAssembly files are written under `dist/` on the host. Set
+`CONTAINER_RUNTIME=docker` to choose Docker explicitly, or `LIBCOAP_REF` to
+fetch a different branch or tag.
+
+Layout
+------
+
+`src/` contains the JavaScript client, socket adapter, parser, and Emscripten
+bindings. `web/` contains the CoAP Explorer page. `tests/` contains the Node
+and browser tests. `docker/` contains the three container definitions and their
+support files. Generated JavaScript and WebAssembly files live in `dist/`.
+The build, Explorer, and test scripts remain at the project root.
 
 Status
 ------
@@ -63,8 +72,9 @@ With host networking, nginx listens on port 8080.
 
 The explorer image builds a native libcoap `coap-server` from the `develop`
 branch and installs nginx during the image build. Nginx serves the current
-`coap-explorer.html`, JavaScript, and WebAssembly files, and proxies
-`/.well-known/coap` to the server's loopback-only WebSocket listener. The page
+`web/coap-explorer.html`, JavaScript files from `src/`, and generated files
+from `dist/`. It proxies `/.well-known/coap` to the server's loopback-only
+WebSocket listener. The page
 shows discovered resources as a tree, observes observable resources, gets
 values for the others, and provides Get and Send (PUT) controls for each local
 resource. Resource attributes can be expanded beneath each resource.
@@ -76,7 +86,7 @@ Run `./run-tests.sh` to build the current Wasm client and run the JavaScript
 unit tests plus a Node.js integration test in a container. The integration
 test starts libcoap's WebSocket server, discovers resources, and checks GET,
 PUT, and several concurrent GET requests through the Wasm client. The build
-updates `libcoap-wasm.js` and `libcoap-wasm.wasm` in this directory. Set
+updates `dist/libcoap-wasm.js` and `dist/libcoap-wasm.wasm`. Set
 `SKIP_WASM_BUILD=1` to test the existing generated files without rebuilding.
 As with the other scripts, set `CONTAINER_RUNTIME=docker` to use Docker or
 `LIBCOAP_REF` to choose a libcoap branch or tag; `develop` is the default.

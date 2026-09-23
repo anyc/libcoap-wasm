@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import {
 	installCoapWebSocketAdapter, tcpMessage, tcpToWebSocket, webSocketToTcp,
-} from './coap-websocket-adapter.js';
+} from '../src/coap-websocket-adapter.js';
 
 function makeModule() {
 	const sent = [];

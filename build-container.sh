@@ -15,7 +15,7 @@ else
 fi
 
 image=localhost/libcoap-wasm-builder
-"$runtime" build -t "$image" -f "$project_dir/Dockerfile" "$project_dir"
+"$runtime" build -t "$image" -f "$project_dir/docker/builder/Dockerfile" "$project_dir"
 run_args=(
 	--rm
 	--user "$(id -u):$(id -g)"

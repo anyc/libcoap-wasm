@@ -19,8 +19,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends nginx \
     && mkdir -p /srv/project
 
 COPY --from=builder /tmp/libcoap-build/coap-server /usr/local/bin/coap-server
-COPY docker/coap-explorer/nginx.conf /etc/nginx/nginx.conf
-COPY docker/coap-explorer/start.sh /usr/local/bin/start-coap-explorer
+COPY docker/explorer/nginx.conf /etc/nginx/nginx.conf
+COPY docker/explorer/start.sh /usr/local/bin/start-coap-explorer
 
 EXPOSE 8080
 ENTRYPOINT ["/usr/local/bin/start-coap-explorer"]

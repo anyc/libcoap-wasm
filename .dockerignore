@@ -1,10 +1,8 @@
 *
-!Dockerfile
-!Dockerfile.coap-explorer
-!Dockerfile.test
 !docker/
-!docker/build.sh
-!docker/coap-explorer/
-!docker/coap-explorer/*
+!docker/builder/
+!docker/builder/*
+!docker/explorer/
+!docker/explorer/*
 !docker/test/
 !docker/test/*

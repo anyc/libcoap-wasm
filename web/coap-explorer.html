@@ -40,7 +40,7 @@
   <ul id="resource-tree" class="tree" aria-live="polite"></ul>
 
   <script type="module">
-    import {parseLinkFormat} from './coap-link-format.js';
+    import {parseLinkFormat} from '../src/coap-link-format.js';
 
     const status = document.querySelector('#status');
     const serverInput = document.querySelector('#server-url');
@@ -257,7 +257,7 @@
 
     try {
       status.textContent = 'Loading libcoap…';
-      const coap = await import('./libcoap.js');
+      const coap = await import('../src/libcoap.js');
       document.querySelector('#version').textContent = coap.coapGetLibCoapVersion();
       status.textContent = 'Creating CoAP context…';
       const ctx = new coap.CoapContext();

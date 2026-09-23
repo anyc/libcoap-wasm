@@ -27,5 +27,5 @@ RUN npm install --prefix /opt/coap-test --no-audit --no-fund ws@8 playwright \
 RUN apt-get update && apt-get install -y --no-install-recommends nginx \
     && rm -rf /var/lib/apt/lists/*
 
-COPY docker/coap-explorer/nginx.conf /etc/nginx/nginx.conf
+COPY docker/explorer/nginx.conf /etc/nginx/nginx.conf
 RUN mkdir -p /srv && ln -s /workspace /srv/project

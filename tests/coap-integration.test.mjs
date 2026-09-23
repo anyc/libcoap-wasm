@@ -3,12 +3,12 @@ import {createRequire} from 'node:module';
 import net from 'node:net';
 import test from 'node:test';
 import {fileURLToPath} from 'node:url';
-import {parseLinkFormat} from './coap-link-format.js';
+import {parseLinkFormat} from '../src/coap-link-format.js';
 
 // The current Emscripten output is an ES module but uses these CommonJS
 // globals in its Node socket implementation.
 globalThis.require = createRequire(import.meta.url);
-globalThis.__dirname = fileURLToPath(new URL('.', import.meta.url));
+globalThis.__dirname = fileURLToPath(new URL('../dist/', import.meta.url));
 
 const port = 5684;
 const serverUrl = `ws://127.0.0.1:${port}/.well-known/coap`;
@@ -29,7 +29,7 @@ async function waitForServer() {
 
 test('Wasm client exchanges multiple CoAP requests over WebSocket', {timeout: 30000}, async () => {
   await waitForServer();
-  const {CoapContext, coapGetLibCoapVersion} = await import('./libcoap.js');
+  const {CoapContext, coapGetLibCoapVersion} = await import('../src/libcoap.js');
   assert.ok(coapGetLibCoapVersion());
 
   const ctx = new CoapContext();

@@ -45,7 +45,7 @@ if [[ $browser_tests == true ]]; then
     target=browser
     run_args+=(--env RUN_BROWSER_TESTS=1 --shm-size=1g)
 fi
-"$runtime" build -t "$image" -f "$project_dir/Dockerfile.test" \
+"$runtime" build -t "$image" -f "$project_dir/docker/test/Dockerfile" \
     --target "$target" --build-arg "LIBCOAP_REF=${LIBCOAP_REF:-develop}" \
     "$project_dir"
 "$runtime" run "${run_args[@]}" "$image"

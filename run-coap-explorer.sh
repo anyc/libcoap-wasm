@@ -43,7 +43,15 @@ else
     exit 1
 fi
 
-for file in coap-explorer.html libcoap.js coap-link-format.js coap-websocket-adapter.js libcoap-wasm.js libcoap-wasm.wasm; do
+required_files=(
+    web/coap-explorer.html
+    src/libcoap.js
+    src/coap-link-format.js
+    src/coap-websocket-adapter.js
+    dist/libcoap-wasm.js
+    dist/libcoap-wasm.wasm
+)
+for file in "${required_files[@]}"; do
     if [[ ! -f "$project_dir/$file" ]]; then
         echo "Missing $project_dir/$file" >&2
         exit 1
@@ -51,7 +59,7 @@ for file in coap-explorer.html libcoap.js coap-link-format.js coap-websocket-ada
 done
 
 image=localhost/libcoap-wasm-explorer
-"$runtime" build -t "$image" -f "$project_dir/Dockerfile.coap-explorer" \
+"$runtime" build -t "$image" -f "$project_dir/docker/explorer/Dockerfile" \
     --build-arg "LIBCOAP_REF=${LIBCOAP_REF:-develop}" "$project_dir"
 
 run_args=(
