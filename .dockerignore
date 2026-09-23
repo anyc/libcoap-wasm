@@ -1,0 +1,7 @@
+*
+!Dockerfile
+!Dockerfile.browser-server
+!docker/
+!docker/build.sh
+!docker/browser-server/
+!docker/browser-server/*
