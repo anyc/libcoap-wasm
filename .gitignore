@@ -1,1 +1,4 @@
 Makefile.local
+/libcoap-wasm.js
+/libcoap-wasm.wasm
+/dist/
