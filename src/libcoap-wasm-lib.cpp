@@ -3,6 +3,7 @@
 
 #include <coap3/coap.h>
 #include <sys/socket.h>
+#include <algorithm>
 
 using namespace emscripten;
 
@@ -59,15 +60,78 @@ uint32_t getPduToken(ptrdiff_t mpdu) {
 		((uint32_t)token.s[2] << 8) | token.s[3];
 }
 
-int addPayload(ptrdiff_t coap_session, ptrdiff_t coap_pdu, std::string payload) {
+void releasePayload(coap_session_t *, void *data) {
+	free(data);
+}
+
+int addPayload(ptrdiff_t coap_session, ptrdiff_t coap_pdu, emscripten::val bytes) {
+	size_t length = bytes["length"].as<size_t>();
+	uint8_t *data = (uint8_t *) malloc(length ? length : 1);
+	if (!data)
+		return 0;
+	emscripten::val(emscripten::typed_memory_view(length, data)).call<void>("set", bytes);
 	return coap_add_data_large_request(
-		(coap_session_t*) coap_session,
-		(coap_pdu_t*) coap_pdu,
-		payload.length(),
-		(uint8_t *) payload.c_str(),
-		0, /* release callback */
-		0  /* release callback userdata */
-		);
+		(coap_session_t *) coap_session, (coap_pdu_t *) coap_pdu,
+		length, data, releasePayload, data);
+}
+
+struct FilePayload {
+	emscripten::val source;
+	size_t size;
+	bool adding = true;
+	bool released = false;
+};
+
+EM_JS(int, copyFileBlock,
+	(EM_VAL source_handle, size_t offset, size_t length, uint8_t *destination), {
+	const bytes = Emval.toValue(source_handle).read(offset, length);
+	if (!bytes || bytes.length !== length)
+		return 0;
+	HEAPU8.set(bytes, destination);
+	return 1;
+});
+
+int getFileBlock(coap_session_t *, size_t max, size_t offset,
+		uint8_t *data, size_t *length, void *app_ptr) {
+	FilePayload *payload = (FilePayload *) app_ptr;
+	if (offset > payload->size)
+		return 0;
+	size_t expected = std::min(max, payload->size - offset);
+	if (!copyFileBlock(payload->source.as_handle(), offset, expected, data))
+		return 0;
+	*length = expected;
+	return 1;
+}
+
+void releaseFilePayload(coap_session_t *, void *app_ptr) {
+	FilePayload *payload = (FilePayload *) app_ptr;
+	payload->source.call<void>("close");
+	if (payload->adding)
+		payload->released = true;
+	else
+		delete payload;
+}
+
+int addFilePayload(ptrdiff_t coap_session, ptrdiff_t coap_pdu, emscripten::val source) {
+	FilePayload *payload = new FilePayload{source, source["size"].as<size_t>()};
+	int result = coap_add_data_large_request_app(
+		(coap_session_t *) coap_session, (coap_pdu_t *) coap_pdu,
+		payload->size, releaseFilePayload, getFileBlock, payload);
+	// libcoap may release a small payload during this call. Its early
+	// connection failure path may instead return without calling release.
+	payload->adding = false;
+	if (payload->released || !result) {
+		payload->source.call<void>("close");
+		delete payload;
+	}
+	return result;
+}
+
+int setContentFormat(ptrdiff_t coap_pdu, uint16_t format) {
+	uint8_t encoded[2];
+	size_t length = coap_encode_var_safe(encoded, sizeof(encoded), format);
+	return coap_add_option((coap_pdu_t *) coap_pdu,
+		COAP_OPTION_CONTENT_FORMAT, length, encoded) != 0;
 }
 
 EM_ASYNC_JS(void, coap_set_connected, (EM_VAL js_ctx_handle, ptrdiff_t coap_session), {
@@ -116,6 +180,9 @@ ptrdiff_t newContext(emscripten::val js_ctx) {
 	coap_context_t *ctx;
 	
 	ctx = coap_new_context(0);
+	coap_context_set_block_mode(ctx, COAP_BLOCK_USE_LIBCOAP | COAP_BLOCK_SINGLE_BODY);
+	/* Avoid BERT: its app-data callback path can resend a block after 2.31. */
+	coap_context_set_max_block_size(ctx, 512);
 	
 	coap_register_event_handler(ctx, coap_event_handler);
 	coap_register_response_handler(ctx, coap_response_handler);
@@ -208,4 +275,6 @@ EMSCRIPTEN_BINDINGS(libcoap) {
 	function("getPduToken", &getPduToken);
 	function("newContext", &newContext);
 	function("addPayload", &addPayload);
+	function("addFilePayload", &addFilePayload);
+	function("setContentFormat", &setContentFormat);
 }

@@ -27,7 +27,7 @@ async function waitForServer() {
   throw new Error(`CoAP WebSocket server did not start on port ${port}`);
 }
 
-test('Wasm client exchanges multiple CoAP requests over WebSocket', {timeout: 30000}, async () => {
+test('Wasm client exchanges concurrent and blockwise CoAP requests', {timeout: 30000}, async () => {
   await waitForServer();
   const {CoapContext, coapGetLibCoapVersion} = await import('../src/libcoap.js');
   assert.ok(coapGetLibCoapVersion());
@@ -40,7 +40,8 @@ test('Wasm client exchanges multiple CoAP requests over WebSocket', {timeout: 30
     if (waiting) {
       pending.delete(token);
       clearTimeout(waiting.timer);
-      waiting.resolve({code: response.getCode(), payload: response.getPayload()});
+      waiting.resolve({code: response.getCode(), payload: response.getPayload(),
+        bytes: response.getPayloadBytes()});
     }
     return 1;
   };
@@ -48,7 +49,13 @@ test('Wasm client exchanges multiple CoAP requests over WebSocket', {timeout: 30
   await session.waitConnected();
 
   function request(method, path, payload) {
-    const pdu = method === 'PUT' ? session.put(path, payload) : session.get(path);
+    const pdu = method === 'PUT'
+      ? session.put(path, payload, payload instanceof Uint8Array ? 42 : undefined)
+      : session.get(path);
+    return waitForPdu(pdu, method, path);
+  }
+
+  function waitForPdu(pdu, method, path) {
     return new Promise((resolve, reject) => {
       const timer = setTimeout(() => {
         pending.delete(pdu.token);
@@ -79,6 +86,29 @@ test('Wasm client exchanges multiple CoAP requests over WebSocket', {timeout: 30
       success(reply);
       assert.equal(reply.payload, value);
     }
+
+    const fileBytes = Uint8Array.from({length: 32781}, (_, index) => index % 256);
+    success(await request('PUT', 'example_data', fileBytes));
+    const downloaded = await request('GET', 'example_data');
+    success(downloaded);
+    assert.deepEqual(downloaded.bytes, fileBytes);
+
+    const reads = [];
+    class TrackedBlob extends Blob {
+      slice(start, end, type) {
+        reads.push({start, end});
+        return super.slice(start, end, type);
+      }
+    }
+    const file = new TrackedBlob([fileBytes]);
+    success(await waitForPdu(await session.putFile('example_data', file),
+      'PUT file', 'example_data'));
+    assert.ok(reads.length > 1, 'File upload should read multiple blocks');
+    assert.ok(reads.every(({start, end}) => end - start <= 1024 &&
+      start >= 0 && start < file.size), 'File reads should stay within one block');
+    const uploaded = await request('GET', 'example_data');
+    success(uploaded);
+    assert.deepEqual(uploaded.bytes, fileBytes);
   } finally {
     for (const {timer} of pending.values()) clearTimeout(timer);
     pending.clear();
