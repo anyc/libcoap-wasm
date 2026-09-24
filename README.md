@@ -2,8 +2,9 @@ libcoap-wasm
 ============
 
 libcoap-wasm provides a JavaScript wrapper around
-[libcoap](https://libcoap.net/). As libcoap is a C library, it has to be
-compiled with [emscripten](https://emscripten.org/) into
+[libcoap](https://libcoap.net/) that can be used to build web pages that
+communicate with a CoAP server. As libcoap is a C library, this project compiles
+it with [emscripten](https://emscripten.org/) into
 [WebAssembly](https://webassembly.org/).
 
 The focus of this wrapper is to enable CoAP communication in a browser but it
@@ -40,19 +41,14 @@ and browser tests. `docker/` contains the three container definitions and their
 support files. Generated JavaScript and WebAssembly files live in `dist/`.
 The build, Explorer, and test scripts remain at the project root.
 
-Status
-------
-This project is a proof-of-concept for now but it can already be used to send
-and receive CoAP messages in the Firefox browser and possibly others.
-
 License
 -------
 
 libcoap-wasm is provided under the MIT license. For libcoap, please see the
 [libcoap license](https://github.com/obgm/libcoap/blob/develop/LICENSE).
 
-CoAP Explorer
--------------
+CoAP Explorer example
+---------------------
 
 Run `./run-coap-explorer.sh`, then open `http://localhost:8080/`. The script
 creates a container that sets up libcoap-wasm with nginx and starts the example
@@ -104,14 +100,3 @@ GitHub Actions runs the container tests on every push and pull request. To run
 the optional browser test in CI, open the **Tests** workflow in GitHub Actions,
 choose **Run workflow**, and enable **Run the headless browser test**. That
 run reuses the Wasm files built by the first step.
-
-Releases
---------
-
-Push a Git tag to run the release workflow. It builds and tests the tagged
-sources, then attaches `libcoap-wasm-<version>.tgz` to the GitHub
-Release. The archive contains a portable `libcoap-wasm/` runtime directory,
-deployment instructions, and CoAP Explorer with an nginx sample under
-`examples/`. For a `v1.0.0` tag, run
-`./scripts/package-release.sh v1.0.0` to build
-`artifacts/libcoap-wasm-1.0.0.tgz` locally.
