@@ -47,6 +47,7 @@
     const resourceTree = document.querySelector('#resource-tree');
     const pending = new Map();
     const controls = new Map();
+    const OCTET_STREAM_CONTENT_FORMAT = 42;
     let session;
     const defaultServerUrl = new URL('/.well-known/coap', location.href);
     defaultServerUrl.protocol = location.protocol === 'https:' ? 'wss:' : 'ws:';
@@ -90,11 +91,45 @@
     }
 
     function request(path, action, value, row, revision = row?.revision) {
-      const pdu = action === 'put' ? session.put(path, value)
-        : action === 'observe' ? session.observe(path)
-          : session.get(path);
+      let pdu;
+      if (action === 'put') pdu = session.put(path, value);
+      else if (action === 'observe') pdu = session.observe(path);
+      else pdu = session.get(path);
       pending.set(pdu.token, {path, action, row, revision, token: pdu.token});
       return pdu.token;
+    }
+
+    function renderFileUpload(path, row) {
+      const form = document.createElement('form');
+      const label = document.createElement('label');
+      label.textContent = 'File ';
+      const input = document.createElement('input');
+      input.type = 'file';
+      input.required = true;
+      label.append(input);
+      const button = document.createElement('button');
+      button.type = 'submit';
+      button.textContent = 'Upload file';
+      row.uploadButton = button;
+      form.append(label, button);
+      form.addEventListener('submit', async event => {
+        event.preventDefault();
+        const file = input.files[0];
+        if (!file) return;
+        button.disabled = true;
+        row.locked = true;
+        row.status.textContent = `Uploading ${file.name} (${file.size} bytes)…`;
+        try {
+          const pdu = await session.putFile(path, file, OCTET_STREAM_CONTENT_FORMAT);
+          row.pendingToken = pdu.token;
+          pending.set(pdu.token, {path, action: 'upload', row,
+            revision: row.revision, file, token: pdu.token});
+        } catch (error) {
+          button.disabled = false;
+          row.status.textContent = `Upload failed: ${error.message}`;
+        }
+      });
+      return form;
     }
 
     function renderAttributes(resource) {
@@ -174,7 +209,9 @@
           row.status.textContent = 'Getting…';
         });
       }
-      container.append(form, row.status, renderAttributes(resource));
+      container.append(form);
+      if (path === 'example_data') container.append(renderFileUpload(path, row));
+      container.append(row.status, renderAttributes(resource));
       return container;
     }
 
@@ -237,8 +274,18 @@
     }
 
     function updateResource(response, code, payload) {
-      const {path, action, row: sender, revision, token} = response;
+      const {path, action, row: sender, revision, token, file} = response;
       const success = code >= 64 && code < 96;
+      if (action === 'upload') {
+        if (code === 95) {
+          sender.status.textContent = `Uploading ${file.name} (${file.size} bytes)…`;
+        } else {
+          sender.uploadButton.disabled = false;
+          sender.status.textContent = `Upload ${coapCode(code)}: ${file.name} ` +
+            `(${file.size} bytes)`;
+        }
+        return;
+      }
       for (const row of controls.get(path) || []) {
         if (success && action !== 'put') {
           if (action === 'get' && row === sender &&
@@ -275,9 +322,9 @@
         const {path, action} = response;
         const code = received.getCode();
         const payload = received.getPayload();
-        if (action !== 'observe' || code < 64 || code >= 96) {
-          pending.delete(token);
-        }
+        const keepPending = (action === 'observe' || action === 'upload' && code === 95) &&
+          code >= 64 && code < 96;
+        if (!keepPending) pending.delete(token);
         if (action === 'discover' && code >= 64 && code < 96) {
           try {
             const resources = parseLinkFormat(payload);

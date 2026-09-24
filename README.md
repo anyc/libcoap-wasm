@@ -77,7 +77,9 @@ from `dist/`. It proxies `/.well-known/coap` to the server's loopback-only
 WebSocket listener. The page
 shows discovered resources as a tree, observes observable resources, gets
 values for the others, and provides Get and Send (PUT) controls for each local
-resource. Resource attributes can be expanded beneath each resource.
+resource. The `/example_data` row can also upload a file using a blockwise PUT
+with the octet-stream Content-Format. The page reads file slices as libcoap
+requests each block. Resource attributes can be expanded beneath each resource.
 
 Tests
 -----
